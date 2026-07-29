@@ -187,18 +187,16 @@ async function saveEmployee(event) {
   if (!nom || !codi) return showResult(false, "Dades incompletes", "Escriu el nom i el codi del treballador.");
   els.saveEmployeeBtn.disabled = true;
   try {
-    let result;
-    if (id) {
-      result = await db
-        .from("empleats")
-        .update({ nom, codi, dni_nie, actiu })
-        .eq("id", id);
-    } else {
-      result = await db
-        .from("empleats")
-        .insert({ nom, codi, dni_nie, actiu });
-    }
-    if (result.error) throw result.error;
+    const { data, error } = await db.rpc("admin_guardar_empleat", {
+      p_id: id ? Number(id) : null,
+      p_nom: nom,
+      p_codi: codi,
+      p_dni_nie: dni_nie,
+      p_actiu: actiu
+    });
+    if (error) throw error;
+    const savedEmployee = Array.isArray(data) ? data[0] : data;
+    if (!savedEmployee?.id) throw new Error("No s'ha pogut confirmar l'actualització de l'empleat.");
     showResult(true, id ? "Empleat actualitzat" : "Empleat creat", `${nom} · codi ${codi}`);
     resetEmployeeForm();
     await loadEmployees();
