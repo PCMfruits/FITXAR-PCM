@@ -189,9 +189,14 @@ async function saveEmployee(event) {
   try {
     let result;
     if (id) {
-      result = await db.from("empleats").update({ nom, codi, dni_nie, actiu }).eq("id", id).select().single();
+      result = await db
+        .from("empleats")
+        .update({ nom, codi, dni_nie, actiu })
+        .eq("id", id);
     } else {
-      result = await db.from("empleats").insert({ nom, codi, dni_nie, actiu }).select().single();
+      result = await db
+        .from("empleats")
+        .insert({ nom, codi, dni_nie, actiu });
     }
     if (result.error) throw result.error;
     showResult(true, id ? "Empleat actualitzat" : "Empleat creat", `${nom} · codi ${codi}`);
@@ -200,7 +205,7 @@ async function saveEmployee(event) {
     applyFilters();
   } catch (error) {
     const duplicate = error.message?.includes("duplicate key") || error.code === "23505";
-    showResult(false, "No s'ha pogut guardar", duplicate ? "Aquest codi ja està assignat a un altre empleat." : error.message);
+    showResult(false, "No s'ha pogut guardar", duplicate ? "Aquest codi o DNI/NIE ja està assignat a un altre empleat." : error.message);
   } finally {
     els.saveEmployeeBtn.disabled = false;
   }
