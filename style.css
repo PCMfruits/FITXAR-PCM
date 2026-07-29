@@ -819,3 +819,28 @@ footer { text-align: center; padding: 8px; color: var(--muted); font-size: 0.9re
     padding: 15px 16px;
   }
 }
+
+
+/* Camp de codi compatible amb teclat mobil i boto de guio */
+.code-input-row {
+  display: grid;
+  grid-template-columns: 1fr 58px;
+  gap: 10px;
+  align-items: stretch;
+}
+.hyphen-btn {
+  border: 2px solid var(--border);
+  border-radius: 15px;
+  background: #f5f6f2;
+  color: var(--dark);
+  font-size: 1.8rem;
+  font-weight: 900;
+  min-height: 60px;
+}
+.hyphen-btn:active {
+  transform: scale(.97);
+  background: #eceee8;
+}
+@media (max-width: 520px) {
+  .code-input-row { grid-template-columns: 1fr 54px; }
+}

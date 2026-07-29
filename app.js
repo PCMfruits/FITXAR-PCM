@@ -5,7 +5,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_yINpI3MnA7jWaLLROmechw_7K0GqwwR";
 const isConfigured = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("POSA_AQUI") && !SUPABASE_ANON_KEY.includes("POSA_AQUI") && !SUPABASE_ANON_KEY.startsWith("sb_secret_");
 const db = isConfigured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-const ids = ["employeeCode","entryBtn","exitBtn","resultCard","resultIcon","resultTitle","resultText","connectionDot","connectionText","currentDate","currentTime","adminEmail","adminPassword","adminLoginBtn","adminLogin","adminPanel","adminUser","recordsBody","employeesBody","refreshBtn","exportBtn","exportSummaryBtn","logoutBtn","employeeSearch","employeeFilter","monthFilter","dayFilter","typeFilter","clearFiltersBtn","recordCount","employeeForm","editingEmployeeId","employeeName","employeeAdminCode","employeeActive","saveEmployeeBtn","cancelEditEmployeeBtn","employeeListSearch","employeeSort","employeeCount","employeeMonthSummary","summaryPlaceholder","summaryContent","summaryEmployeeName","summaryMonthLabel","summaryTotalHours","summaryWorkedDays","workCalendar","dailySummaryBody","bulkProgress","bulkProgressTitle","bulkProgressText","cancelBulkBtn","punchEditorCategory","punchEditorForm","editPunchEmployee","editPunchDate","editPunchEntry1","editPunchExit1","editPunchEntry2","editPunchExit2","editPunchHours","editPunchReason","loadPunchDayBtn","savePunchDayBtn","clearPunchDayBtn","batchStartDate","batchEndDate","batchEntry1","batchExit1","batchEntry2","batchExit2","batchReason","createBatchDaysBtn","weekdayPicker","employeeDocument","workerPortalDetails","workerPortalLogin","workerPortalCode","workerPortalMonth","workerPortalBtn","workerPortalPanel","workerPortalName","workerPortalMonthLabel","workerPortalHours","workerPortalDays","workerPortalCalendar","workerPortalRecords","workerPortalCloseBtn","batchAllActive","autoPunchStatus","autoPunchEnabled","autoPunchEntry1","autoPunchExit1","autoPunchEntry2","autoPunchExit2","saveAutoPunchBtn"];
+const ids = ["employeeCode","hyphenBtn","entryBtn","exitBtn","resultCard","resultIcon","resultTitle","resultText","connectionDot","connectionText","currentDate","currentTime","adminEmail","adminPassword","adminLoginBtn","adminLogin","adminPanel","adminUser","recordsBody","employeesBody","refreshBtn","exportBtn","exportSummaryBtn","logoutBtn","employeeSearch","employeeFilter","monthFilter","dayFilter","typeFilter","clearFiltersBtn","recordCount","employeeForm","editingEmployeeId","employeeName","employeeAdminCode","employeeActive","saveEmployeeBtn","cancelEditEmployeeBtn","employeeListSearch","employeeSort","employeeCount","employeeMonthSummary","summaryPlaceholder","summaryContent","summaryEmployeeName","summaryMonthLabel","summaryTotalHours","summaryWorkedDays","workCalendar","dailySummaryBody","bulkProgress","bulkProgressTitle","bulkProgressText","cancelBulkBtn","punchEditorCategory","punchEditorForm","editPunchEmployee","editPunchDate","editPunchEntry1","editPunchExit1","editPunchEntry2","editPunchExit2","editPunchHours","editPunchReason","loadPunchDayBtn","savePunchDayBtn","clearPunchDayBtn","batchStartDate","batchEndDate","batchEntry1","batchExit1","batchEntry2","batchExit2","batchReason","createBatchDaysBtn","weekdayPicker","employeeDocument","workerPortalDetails","workerPortalLogin","workerPortalCode","workerPortalMonth","workerPortalBtn","workerPortalPanel","workerPortalName","workerPortalMonthLabel","workerPortalHours","workerPortalDays","workerPortalCalendar","workerPortalRecords","workerPortalCloseBtn","batchAllActive","autoPunchStatus","autoPunchEnabled","autoPunchEntry1","autoPunchExit1","autoPunchEntry2","autoPunchExit2","saveAutoPunchBtn"];
 const els = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 
 let currentRecords = [];
@@ -618,7 +618,16 @@ els.employeesBody.addEventListener("click", event => {
   if (editButton) editEmployee(editButton.dataset.editEmployee);
   if (toggleButton) toggleEmployee(toggleButton.dataset.toggleEmployee);
 });
-els.employeeCode.addEventListener("keydown", e => { if (e.key === "Enter") registerPunch("entrada"); }); els.adminPassword.addEventListener("keydown", e => { if (e.key === "Enter") adminLogin(); });
+els.employeeCode.addEventListener("keydown", e => { if (e.key === "Enter") registerPunch("entrada"); });
+els.hyphenBtn?.addEventListener("click", () => {
+  const input = els.employeeCode;
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? start;
+  input.value = input.value.slice(0, start) + "-" + input.value.slice(end);
+  input.focus();
+  input.setSelectionRange(start + 1, start + 1);
+});
+ els.adminPassword.addEventListener("keydown", e => { if (e.key === "Enter") adminLogin(); });
 els.cancelBulkBtn.addEventListener("click", () => { cancelBulkRequested = true; els.bulkProgressText.textContent = "Aturant després del registre actual…"; });
 els.punchEditorForm.addEventListener("submit", savePunchDay);
 els.loadPunchDayBtn.addEventListener("click", loadPunchDay);
