@@ -844,3 +844,63 @@ footer { text-align: center; padding: 8px; color: var(--muted); font-size: 0.9re
 @media (max-width: 520px) {
   .code-input-row { grid-template-columns: 1fr 54px; }
 }
+
+/* Versio final: cua al servidor, codi secret i calendari editor */
+.brand-card { background: #454545; }
+.code-input-row { grid-template-columns: 1fr 58px; }
+.secret-toggle-btn {
+  border: 2px solid var(--border);
+  border-radius: 15px;
+  background: #f5f6f2;
+  color: var(--dark);
+  font-size: 1.35rem;
+  font-weight: 900;
+  min-height: 60px;
+  cursor: pointer;
+}
+.secret-toggle-btn[aria-pressed="true"] { background: #fff0dc; border-color: var(--orange); }
+.editor-calendar-controls {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.4fr;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.editor-calendar-controls label {
+  display: grid;
+  gap: 6px;
+  font-size: .86rem;
+  font-weight: 750;
+  color: var(--muted);
+}
+.editor-calendar-controls select,
+.editor-calendar-controls input {
+  width: 100%;
+  min-height: 43px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+.selected-editor-date {
+  min-height: 43px;
+  display: flex;
+  align-items: center;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #f4f5f1;
+  color: var(--muted);
+}
+.editor-calendar-card { margin-bottom: 14px; }
+.clickable-calendar .calendar-day:not(.empty) { cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.clickable-calendar .calendar-day:not(.empty):hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(0,0,0,.08); }
+.clickable-calendar .calendar-day.selected { outline: 3px solid var(--orange); outline-offset: 1px; }
+.clickable-calendar .calendar-day.future { opacity: .4; cursor: not-allowed; }
+.bulk-progress { position: relative; }
+.bulk-progress.server-job { border-color: rgba(255,151,0,.45); background: #fff8ec; }
+
+@media (max-width: 720px) {
+  .editor-calendar-controls { grid-template-columns: 1fr; }
+  .selected-editor-date { width: 100%; }
+  .secret-toggle-btn { min-height: 58px; }
+}

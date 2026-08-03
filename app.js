@@ -5,7 +5,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_yINpI3MnA7jWaLLROmechw_7K0GqwwR";
 const isConfigured = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("POSA_AQUI") && !SUPABASE_ANON_KEY.includes("POSA_AQUI") && !SUPABASE_ANON_KEY.startsWith("sb_secret_");
 const db = isConfigured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-const ids = ["employeeCode","hyphenBtn","entryBtn","exitBtn","resultCard","resultIcon","resultTitle","resultText","connectionDot","connectionText","currentDate","currentTime","adminEmail","adminPassword","adminLoginBtn","adminLogin","adminPanel","adminUser","recordsBody","employeesBody","refreshBtn","exportBtn","exportSummaryBtn","logoutBtn","employeeSearch","employeeFilter","monthFilter","dayFilter","typeFilter","clearFiltersBtn","recordCount","employeeForm","editingEmployeeId","employeeName","employeeAdminCode","employeeActive","saveEmployeeBtn","cancelEditEmployeeBtn","employeeListSearch","employeeSort","employeeCount","employeeMonthSummary","summaryPlaceholder","summaryContent","summaryEmployeeName","summaryMonthLabel","summaryTotalHours","summaryWorkedDays","workCalendar","dailySummaryBody","bulkProgress","bulkProgressTitle","bulkProgressText","cancelBulkBtn","punchEditorCategory","punchEditorForm","editPunchEmployee","editPunchDate","editPunchEntry1","editPunchExit1","editPunchEntry2","editPunchExit2","editPunchHours","editPunchReason","loadPunchDayBtn","savePunchDayBtn","clearPunchDayBtn","batchStartDate","batchEndDate","batchEntry1","batchExit1","batchEntry2","batchExit2","batchReason","createBatchDaysBtn","weekdayPicker","employeeDocument","workerPortalDetails","workerPortalLogin","workerPortalCode","workerPortalMonth","workerPortalBtn","workerPortalPanel","workerPortalName","workerPortalMonthLabel","workerPortalHours","workerPortalDays","workerPortalCalendar","workerPortalRecords","workerPortalCloseBtn","batchAllActive","autoPunchStatus","autoPunchEnabled","autoPunchEntry1","autoPunchExit1","autoPunchEntry2","autoPunchExit2","saveAutoPunchBtn"];
+const ids = ["employeeCode","toggleCodeBtn","entryBtn","exitBtn","resultCard","resultIcon","resultTitle","resultText","connectionDot","connectionText","currentDate","currentTime","adminEmail","adminPassword","adminLoginBtn","adminLogin","adminPanel","adminUser","recordsBody","employeesBody","refreshBtn","exportBtn","exportSummaryBtn","logoutBtn","employeeSearch","employeeFilter","monthFilter","dayFilter","typeFilter","clearFiltersBtn","recordCount","employeeForm","editingEmployeeId","employeeName","employeeAdminCode","employeeActive","saveEmployeeBtn","cancelEditEmployeeBtn","employeeListSearch","employeeSort","employeeCount","employeeMonthSummary","summaryPlaceholder","summaryContent","summaryEmployeeName","summaryMonthLabel","summaryTotalHours","summaryWorkedDays","workCalendar","dailySummaryBody","bulkProgress","bulkProgressTitle","bulkProgressText","cancelBulkBtn","punchEditorCategory","punchEditorForm","editPunchEmployee","editPunchDate","editPunchEntry1","editPunchExit1","editPunchEntry2","editPunchExit2","editPunchHours","editPunchReason","loadPunchDayBtn","savePunchDayBtn","clearPunchDayBtn","batchStartDate","batchEndDate","batchEntry1","batchExit1","batchEntry2","batchExit2","batchReason","createBatchDaysBtn","weekdayPicker","employeeDocument","workerPortalDetails","workerPortalLogin","workerPortalCode","workerPortalMonth","workerPortalBtn","workerPortalPanel","workerPortalName","workerPortalMonthLabel","workerPortalHours","workerPortalDays","workerPortalCalendar","workerPortalRecords","workerPortalCloseBtn","batchAllActive","autoPunchStatus","autoPunchEnabled","autoPunchEntry1","autoPunchExit1","autoPunchEntry2","autoPunchExit2","saveAutoPunchBtn","notificationBtn","editCalendarMonth","editPunchCalendar","editSelectedDate"];
 const els = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 
 let currentRecords = [];
@@ -14,6 +14,8 @@ let employees = [];
 let employeeStatus = "all";
 let currentAdminEmail = "";
 let cancelBulkRequested = false;
+let activeBulkJobId = localStorage.getItem("pcm_active_bulk_job") || "";
+let bulkPollTimer = null;
 const PRIMARY_ADMIN_EMAIL = "admin@pcmfruits.com";
 
 function updateClock() {
@@ -38,20 +40,70 @@ function parseCodeRange(value) {
   const first = Number(match[1]);
   const last = Number(match[2]);
   if (!Number.isInteger(first) || !Number.isInteger(last) || first < 1 || last < first || last - first > 199) return [];
-  return Array.from({ length: last - first + 1 }, (_, i) => String(first + i));
+  return { first, last, total: last - first + 1 };
 }
-function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 async function registerSinglePunch(code, type) {
   const { data, error } = await db.rpc("registrar_fitxatge", { p_codi: code, p_tipus: type });
   if (error) throw error;
   return Array.isArray(data) ? data[0] : data;
+}
+async function startServerBulkPunch(range, type) {
+  const { data, error } = await db.rpc("iniciar_fitxatge_grup_servidor", {
+    p_codi_inici: range.first,
+    p_codi_fi: range.last,
+    p_tipus: type
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  activeBulkJobId = row.job_id;
+  localStorage.setItem("pcm_active_bulk_job", activeBulkJobId);
+  els.bulkProgress.classList.add("server-job");
+  els.bulkProgress.classList.remove("hidden");
+  els.bulkProgressTitle.textContent = `${type === "entrada" ? "Entrades" : "Sortides"} en grup al servidor`;
+  els.bulkProgressText.textContent = `${row.total_actius ?? 0} actius en cua · ${row.omitits ?? 0} inactius o inexistents omesos. Pots tancar l’aplicació.`;
+  monitorBulkJob(activeBulkJobId, true);
+  return row;
+}
+async function monitorBulkJob(jobId, immediate = false) {
+  clearTimeout(bulkPollTimer);
+  if (!jobId || !db) return;
+  const run = async () => {
+    const { data, error } = await db.rpc("estat_fitxatge_grup_servidor", { p_job_id: jobId });
+    if (error) {
+      els.bulkProgressText.textContent = `No s'ha pogut consultar el procés: ${error.message}`;
+      bulkPollTimer = setTimeout(run, 10000);
+      return;
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) {
+      localStorage.removeItem("pcm_active_bulk_job");
+      activeBulkJobId = "";
+      els.bulkProgress.classList.add("hidden");
+      return;
+    }
+    els.bulkProgress.classList.remove("hidden");
+    els.bulkProgress.classList.add("server-job");
+    els.bulkProgressTitle.textContent = `Fitxatge en grup · ${row.estat}`;
+    els.bulkProgressText.textContent = `${row.processats}/${row.total} processats · ${row.correctes} correctes · ${row.errors} errors · ${row.omesos} omesos`;
+    if (["completat","cancel_lada","error"].includes(row.estat)) {
+      localStorage.removeItem("pcm_active_bulk_job");
+      activeBulkJobId = "";
+      const ok = row.estat === "completat" && Number(row.errors) === 0;
+      showResult(ok, "Fitxatge en grup finalitzat", `${row.correctes} correctes · ${row.errors} errors · ${row.omesos} omesos.`);
+      notifyUser("PCM Fruits · Fitxatge en grup", `${row.correctes} correctes, ${row.errors} errors i ${row.omesos} omesos.`);
+      setTimeout(() => els.bulkProgress.classList.add("hidden"), 8000);
+      return;
+    }
+    bulkPollTimer = setTimeout(run, 5000);
+  };
+  if (immediate) await run(); else bulkPollTimer = setTimeout(run, 1500);
 }
 async function registerPunch(type) {
   const raw = els.employeeCode.value.trim();
   if (!raw) return showResult(false, "Falta el codi", "Introdueix el codi de treballador abans de fitxar.");
   if (!db) return showResult(false, "Supabase no configurat", "Obre app.js i posa la URL i la clau pública del projecte.");
   const range = parseCodeRange(raw);
-  if (Array.isArray(range) && range.length === 0) return showResult(false, "Rang incorrecte", "Escriu un rang vàlid, per exemple 1-35. El màxim és de 200 codis.");
+  if (range && range.total === 0) return showResult(false, "Rang incorrecte", "Escriu un rang vàlid, per exemple 1-35. El màxim és de 200 codis.");
   if (!range) {
     setBusy(true);
     try {
@@ -63,34 +115,15 @@ async function registerPunch(type) {
     finally { setBusy(false); }
     return;
   }
-
-  if (!window.confirm(`Es registraran ${range.length} ${type === "entrada" ? "entrades" : "sortides"}, una cada 10-20 segons. Vols continuar?`)) return;
-  cancelBulkRequested = false;
+  if (!window.confirm(`Es crearà una cua al servidor per als codis ${range.first}-${range.last}. Continuarà encara que tanquis l'aplicació. Vols continuar?`)) return;
   setBusy(true);
-  els.bulkProgress.classList.remove("hidden");
-  const ok = [], failed = [];
   try {
-    for (let i = 0; i < range.length; i++) {
-      if (cancelBulkRequested) break;
-      const code = range[i];
-      els.bulkProgressTitle.textContent = `${type === "entrada" ? "Entrades" : "Sortides"} en grup`;
-      els.bulkProgressText.textContent = `Processant codi ${code} · ${i + 1} de ${range.length}`;
-      try { const record = await registerSinglePunch(code, type); ok.push(`${code} ${record.nom}`); }
-      catch (error) { failed.push(`${code}: ${humanizeError(error.message)}`); }
-      if (i < range.length - 1 && !cancelBulkRequested) {
-        const delay = 10000 + Math.floor(Math.random() * 10001);
-        els.bulkProgressText.textContent = `Codi ${code} completat. Següent en ${Math.ceil(delay / 1000)} segons…`;
-        await wait(delay);
-      }
-    }
-    const stopped = cancelBulkRequested ? " Procés aturat manualment." : "";
-    showResult(failed.length === 0, "Fitxatge en grup finalitzat", `${ok.length} correctes · ${failed.length} errors.${stopped}${failed.length ? " Errors: " + failed.slice(0, 4).join(" | ") : ""}`);
+    const row = await startServerBulkPunch(range, type);
+    showResult(true, "Fitxatge en grup iniciat", `${row.total_actius ?? 0} empleats actius en cua. Pots tancar l'aplicació.`);
     els.employeeCode.value = "";
-  } finally {
-    setBusy(false);
-    els.bulkProgress.classList.add("hidden");
-    cancelBulkRequested = false;
-  }
+  } catch (error) {
+    showResult(false, "No s'ha pogut iniciar", humanizeError(error.message));
+  } finally { setBusy(false); }
 }
 function humanizeError(message = "") { if (message.includes("CODI_INCORRECTE")) return "El codi no correspon a cap treballador actiu."; if (message.includes("FITXATGE_DUPLICAT")) return "Aquest treballador ja ha registrat aquest mateix tipus consecutivament."; return message || "S'ha produït un error inesperat."; }
 
@@ -125,6 +158,7 @@ async function loadEmployees() {
   els.editPunchEmployee.innerHTML = '<option value="">Selecciona un empleat</option>' + employees.map(e => `<option value="${e.id}">${escapeHtml(e.nom)} (${escapeHtml(e.codi)})</option>`).join("");
   renderEmployees();
   applyFilters();
+  renderEditPunchCalendar();
 }
 function renderEmployees() {
   const search = els.employeeListSearch.value.trim().toLowerCase();
@@ -214,8 +248,8 @@ async function toggleEmployee(id) {
   if (!employee) return;
   const action = employee.actiu ? "desactivar" : "activar";
   if (!window.confirm(`Vols ${action} ${employee.nom}?`)) return;
-  const { error } = await db.from("empleats").update({ actiu: !employee.actiu }).eq("id", employee.id);
-  if (error) return showResult(false, "No s'ha pogut actualitzar", error.message);
+  const { error } = await db.rpc("admin_canviar_estat_empleat", { p_empleat_id: Number(employee.id), p_actiu: !employee.actiu });
+  if (error) return showResult(false, "No s'ha pogut actualitzar", humanizeError(error.message));
   showResult(true, employee.actiu ? "Empleat desactivat" : "Empleat activat", employee.nom);
   await loadEmployees();
   applyFilters();
@@ -225,7 +259,7 @@ async function loadRecords() {
   els.recordsBody.innerHTML = '<tr><td colspan="5" class="empty-row">Carregant...</td></tr>';
   const { data, error } = await db.from("vista_fitxatges").select("id,data_hora,tipus,nom,codi").order("data_hora", { ascending: false }).limit(10000);
   if (error) { els.recordsBody.innerHTML = `<tr><td colspan="5" class="empty-row">${escapeHtml(error.message)}</td></tr>`; return; }
-  currentRecords = data || []; applyFilters();
+  currentRecords = data || []; applyFilters(); renderEditPunchCalendar();
 }
 function localParts(iso) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso));
@@ -540,6 +574,58 @@ async function saveAutoPunchConfig() {
 
 
 
+
+async function requestNotifications() {
+  if (!("Notification" in window)) return showResult(false, "No compatible", "Aquest navegador no admet notificacions web.");
+  const permission = await Notification.requestPermission();
+  if (permission === "granted") {
+    showResult(true, "Notificacions activades", "Rebràs avisos mentre l'aplicació estigui oberta o en segon pla.");
+    notifyUser("PCM Fruits", "Notificacions activades correctament.");
+  } else showResult(false, "Permís no concedit", "Activa les notificacions des dels ajustos del navegador.");
+}
+async function notifyUser(title, body) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const reg = await navigator.serviceWorker?.ready;
+    if (reg) await reg.showNotification(title, { body, icon: "./assets/icon-192.png", badge: "./assets/icon-192.png", tag: "pcm-fitxatge", renotify: true });
+    else new Notification(title, { body, icon: "./assets/icon-192.png" });
+  } catch (_) {}
+}
+function setEditorMonth() {
+  const now = new Date();
+  els.editCalendarMonth.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+}
+function renderEditPunchCalendar() {
+  const employeeId = els.editPunchEmployee.value;
+  const monthValue = els.editCalendarMonth.value;
+  if (!employeeId || !monthValue) { els.editPunchCalendar.innerHTML = '<span class="calendar-day empty"></span>'; return; }
+  const employee = employees.find(e => String(e.id) === String(employeeId));
+  if (!employee) return;
+  const [year, month] = monthValue.split("-").map(Number);
+  const records = currentRecords.filter(r => {
+    const p = localParts(r.data_hora);
+    return String(r.codi) === String(employee.codi) && `${p.year}-${p.month}` === monthValue;
+  });
+  const worked = new Set(records.map(r => Number(localParts(r.data_hora).day)));
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const mondayIndex = (new Date(year, month - 1, 1).getDay() + 6) % 7;
+  const today = todayLocalIso();
+  const cells=[];
+  for(let i=0;i<mondayIndex;i++) cells.push('<button type="button" class="calendar-day empty" tabindex="-1"></button>');
+  for(let day=1;day<=daysInMonth;day++){
+    const iso=`${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    const classes=["calendar-day",worked.has(day)?"worked":"",els.editPunchDate.value===iso?"selected":"",iso>today?"future":""].filter(Boolean).join(" ");
+    cells.push(`<button type="button" class="${classes}" data-editor-date="${iso}" ${iso>today?"disabled":""}><b>${day}</b>${worked.has(day)?"<small>Registrat</small>":""}</button>`);
+  }
+  els.editPunchCalendar.innerHTML=cells.join("");
+}
+async function selectEditorDate(date) {
+  els.editPunchDate.value = date;
+  els.editSelectedDate.textContent = date.split("-").reverse().join("/");
+  renderEditPunchCalendar();
+  await loadPunchDay();
+}
+
 function setWorkerPortalMonth() {
   const now = new Date();
   els.workerPortalMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -622,22 +708,25 @@ els.employeesBody.addEventListener("click", event => {
   if (toggleButton) toggleEmployee(toggleButton.dataset.toggleEmployee);
 });
 els.employeeCode.addEventListener("keydown", e => { if (e.key === "Enter") registerPunch("entrada"); });
-els.hyphenBtn?.addEventListener("click", () => {
-  const input = els.employeeCode;
-  const start = input.selectionStart ?? input.value.length;
-  const end = input.selectionEnd ?? start;
-  input.value = input.value.slice(0, start) + "-" + input.value.slice(end);
-  input.focus();
-  input.setSelectionRange(start + 1, start + 1);
+els.toggleCodeBtn?.addEventListener("click", () => {
+  const show = els.employeeCode.type === "password";
+  els.employeeCode.type = show ? "text" : "password";
+  els.toggleCodeBtn.setAttribute("aria-pressed", String(show));
+  els.toggleCodeBtn.textContent = show ? "🙈" : "👁";
+  els.employeeCode.focus();
 });
  els.adminPassword.addEventListener("keydown", e => { if (e.key === "Enter") adminLogin(); });
-els.cancelBulkBtn.addEventListener("click", () => { cancelBulkRequested = true; els.bulkProgressText.textContent = "Aturant després del registre actual…"; });
+els.cancelBulkBtn.addEventListener("click", async () => { if (!activeBulkJobId) return; const { error } = await db.rpc("cancel_lar_fitxatge_grup_servidor", { p_job_id: activeBulkJobId }); if (error) showResult(false,"No s'ha pogut aturar",error.message); else els.bulkProgressText.textContent = "Cancel·lació sol·licitada…"; });
 els.punchEditorForm.addEventListener("submit", savePunchDay);
 els.loadPunchDayBtn.addEventListener("click", loadPunchDay);
 els.clearPunchDayBtn.addEventListener("click", clearPunchDay);
 els.createBatchDaysBtn.addEventListener("click", createBatchDays);
 els.autoPunchEnabled.addEventListener("change", updateAutoPunchStatus);
 els.saveAutoPunchBtn.addEventListener("click", saveAutoPunchConfig);
+els.notificationBtn.addEventListener("click", requestNotifications);
+els.editPunchEmployee.addEventListener("change", renderEditPunchCalendar);
+els.editCalendarMonth.addEventListener("input", renderEditPunchCalendar);
+els.editPunchCalendar.addEventListener("click", event => { const button = event.target.closest("[data-editor-date]"); if (button && !button.disabled) selectEditorDate(button.dataset.editorDate); });
 [els.editPunchEntry1,els.editPunchExit1,els.editPunchEntry2,els.editPunchExit2].forEach(el => el.addEventListener("input", calculateSplitHours));
 els.editPunchDate.max = todayLocalIso(); els.batchStartDate.max = todayLocalIso(); els.batchEndDate.max = todayLocalIso();
 
@@ -645,6 +734,8 @@ els.workerPortalBtn.addEventListener("click", openWorkerPortal);
 els.workerPortalCloseBtn.addEventListener("click", closeWorkerPortal);
 els.workerPortalCode.addEventListener("keydown", e => { if (e.key === "Enter") openWorkerPortal(); });
 setWorkerPortalMonth();
+setEditorMonth();
+if (activeBulkJobId) monitorBulkJob(activeBulkJobId);
 updateClock(); setInterval(updateClock, 1000); verifyConnection(); restoreSession();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

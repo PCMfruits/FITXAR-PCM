@@ -36,8 +36,8 @@
     </section>
 
     <section class="fichatge-card">
-      <label for="employeeCode">Codi de treballador</label>
-      <div class="code-input-row"><input id="employeeCode" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="20" placeholder="Introdueix codi" /><button type="button" class="hyphen-btn" id="hyphenBtn" aria-label="Afegir guió">−</button></div>
+      <label for="employeeCode">Codi de treballador/a</label>
+      <div class="code-input-row"><input id="employeeCode" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="20" placeholder="Introdueix el codi secret" /><button type="button" class="secret-toggle-btn" id="toggleCodeBtn" aria-label="Mostrar o amagar el codi" aria-pressed="false">👁</button></div>
       <div class="actions">
         <button type="button" class="btn btn-entry" id="entryBtn"><span>Entrada</span><small>Iniciar jornada</small></button>
         <button type="button" class="btn btn-exit" id="exitBtn"><span>Sortida</span><small>Finalitzar jornada</small></button>
@@ -95,6 +95,7 @@
           <div class="admin-toolbar">
             <div><strong>Panell d'administració</strong><p id="adminUser"></p></div>
             <div class="toolbar-actions">
+              <button type="button" class="secondary-btn" id="notificationBtn">Activar notificacions</button>
               <button type="button" class="secondary-btn" id="refreshBtn">Actualitzar</button>
               <button type="button" class="secondary-btn danger" id="logoutBtn">Sortir</button>
             </div>
@@ -176,9 +177,18 @@
             <summary><span>Editar i crear jornades</span><span class="admin-only-badge">Només admin principal</span></summary>
             <div class="admin-section category-content">
               <div class="section-heading"><div><h2>Editor de fitxatges</h2><p>Disponible exclusivament per a admin@pcmfruits.com. Les modificacions queden registrades a l'auditoria.</p></div></div>
-              <form id="punchEditorForm" class="punch-editor-form">
+              <div class="editor-calendar-controls">
                 <label>Treballador<select id="editPunchEmployee" required><option value="">Selecciona un empleat</option></select></label>
-                <label>Data<input id="editPunchDate" type="date" required /></label>
+                <label>Mes<input id="editCalendarMonth" type="month" /></label>
+                <div class="selected-editor-date">Dia seleccionat: <strong id="editSelectedDate">cap</strong></div>
+              </div>
+              <div class="calendar-card editor-calendar-card">
+                <div class="calendar-weekdays" aria-hidden="true"><span>Dl</span><span>Dt</span><span>Dc</span><span>Dj</span><span>Dv</span><span>Ds</span><span>Dg</span></div>
+                <div class="calendar-grid clickable-calendar" id="editPunchCalendar"></div>
+                <div class="calendar-legend"><span class="legend-dot"></span> Dia amb fitxatge · toca un dia per editar-lo</div>
+              </div>
+              <form id="punchEditorForm" class="punch-editor-form">
+                <input id="editPunchDate" type="hidden" required />
                 <label>Entrada 1<input id="editPunchEntry1" type="time" step="60" required /></label>
                 <label>Sortida 1 · inici pausa<input id="editPunchExit1" type="time" step="60" required /></label>
                 <label>Entrada 2 · final pausa<input id="editPunchEntry2" type="time" step="60" required /></label>
